@@ -24,8 +24,14 @@ const app = express();
 const server = http.createServer(app);
 
 // --- Socket.IO ---
+const allowedOrigins = process.env.CLIENT_URLS
+  ? process.env.CLIENT_URLS.split(',').map((s) => s.trim())
+  : '*';
+
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'], credentials: true },
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 socketHandler(io);
 

@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: messcast-backend
+    env: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Set these in the Render dashboard — do NOT commit real values here
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: BASE_URL
+        sync: false          # e.g. https://messcast-backend.onrender.com
+      - key: CLIENT_URLS
+        sync: false          # comma-separated: https://messcast-admin.onrender.com
+      - key: STORAGE_ALERT_MB
+        value: "500"
+      - key: APP_SCHEME
+        value: messcast
+      - key: OTP_PROVIDER
+        value: twofactor
+      - key: OTP_DEV_BYPASS
+        value: "false"
+      - key: TWOFACTOR_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false

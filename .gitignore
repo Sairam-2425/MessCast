@@ -3,6 +3,13 @@
 # Temp / tool folders
 ui-ux-pro-max-skill/
 
+# Uploaded user files (ephemeral on Render — keep directory, ignore contents)
+backend/uploads/**
+!backend/uploads/.gitkeep
+
+# EAS submit key (never commit)
+mobile/google-services-key.json
+
 # Environment variables (secrets)
 .env
 .env.*
