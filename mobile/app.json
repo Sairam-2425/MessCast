@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "MessCast",
+    "slug": "messcast",
+    "version": "1.0.0",
+    "scheme": "messcast",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.messcast.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0F"
+      },
+      "package": "com.messcast.app",
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "androidNavigationBar": {
+      "visible": "leanBack",
+      "barStyle": "light-content",
+      "backgroundColor": "#0A0A0F"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#7C5CFC"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MessCast to access your photos",
+          "cameraPermission": "Allow MessCast to access your camera"
+        }
+      ],
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
+  }
+}
