@@ -3,9 +3,11 @@
 # Temp / tool folders
 ui-ux-pro-max-skill/
 
-# Uploaded user files (ephemeral on Render — keep directory, ignore contents)
+# Uploaded user files (ephemeral on Render — keep directories, ignore contents)
 backend/uploads/**
 !backend/uploads/.gitkeep
+!backend/uploads/avatars/
+!backend/uploads/avatars/.gitkeep
 
 # EAS submit key (never commit)
 mobile/google-services-key.json

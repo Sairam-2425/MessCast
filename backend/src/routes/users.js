@@ -8,10 +8,16 @@ const verifyJWT = require('../middleware/verifyJWT');
 
 const router = express.Router();
 
+// Ensure upload directories exist at startup (Render has ephemeral FS — must recreate on every deploy)
+const UPLOAD_ROOT  = path.join(__dirname, '../../uploads');
+const AVATAR_DIR   = path.join(UPLOAD_ROOT, 'avatars');
+fs.mkdirSync(AVATAR_DIR, { recursive: true });
+
 // Avatar upload storage
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads/avatars'));
+    fs.mkdirSync(AVATAR_DIR, { recursive: true }); // safety: recreate if deleted mid-run
+    cb(null, AVATAR_DIR);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();

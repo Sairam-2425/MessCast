@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Image, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Radius } from '../../constants/theme';
+import { Colors } from '../../constants/theme';
 import { BASE_URL } from '../../constants/config';
 
 interface AvatarWithRingProps {
@@ -36,6 +36,11 @@ export function AvatarWithRing({
       : `${BASE_URL}${avatarUrl}`
     : null;
 
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Reset error state whenever the URL changes (e.g. user uploads a new avatar)
+  useEffect(() => { setImgFailed(false); }, [fullUrl]);
+
   const dotSize = Math.max(10, size * 0.24);
 
   return (
@@ -47,10 +52,11 @@ export function AvatarWithRing({
           { width: size, height: size, borderRadius: size / 2 },
         ]}
       >
-        {fullUrl ? (
+        {fullUrl && !imgFailed ? (
           <Image
             source={{ uri: fullUrl }}
             style={{ width: size - 4, height: size - 4, borderRadius: (size - 4) / 2 }}
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <View
