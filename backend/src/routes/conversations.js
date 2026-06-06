@@ -1,22 +1,12 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
+const express  = require('express');
+const multer   = require('multer');
 const Conversation = require('../models/Conversation');
-const User = require('../models/User');
+const User     = require('../models/User');
 const verifyJWT = require('../middleware/verifyJWT');
+const storage  = require('../services/storage');
 
-// Multer storage for group avatars — same directory as user avatars for simplicity.
-const groupAvatarStorage = multer.diskStorage({
-  destination: (_req, _file, cb) =>
-    cb(null, path.join(__dirname, '../../uploads/avatars')),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `group_${req.params.id}_${Date.now()}${ext}`);
-  },
-});
 const groupAvatarUpload = multer({
-  storage: groupAvatarStorage,
+  storage: storage.multerStorage('avatars'),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -339,10 +329,7 @@ router.get('/:id/pinned-message', async (req, res, next) => {
 });
 
 // POST /api/conversations/:id/avatar
-// Upload or replace the group avatar image.
-// Allowed by group admins and app admins only.
 router.post('/:id/avatar', (req, res, next) => {
-  // Run multer first so req.file is populated before the async handler.
   groupAvatarUpload.single('avatar')(req, res, async (multerErr) => {
     if (multerErr) return next(multerErr);
     try {
@@ -352,19 +339,16 @@ router.post('/:id/avatar', (req, res, next) => {
       if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
       if (conversation.type !== 'group') return res.status(400).json({ error: 'Not a group' });
       if (!isGroupAdmin(conversation, req.user.id) && req.user.role !== 'admin') {
-        // Clean up the just-uploaded file before rejecting
-        fs.unlink(req.file.path, () => {});
+        await storage.deleteFile(req.file.path ?? req.file.originalname);
         return res.status(403).json({ error: 'Only group admins can change group image' });
       }
 
-      // Delete the previous avatar from disk
+      // Delete previous avatar from whichever backend holds it
       if (conversation.groupAvatar) {
-        const oldFilename = path.basename(conversation.groupAvatar);
-        const oldPath = path.join(__dirname, '../../uploads/avatars', oldFilename);
-        if (fs.existsSync(oldPath)) fs.unlink(oldPath, () => {});
+        await storage.deleteFile(conversation.groupAvatar);
       }
 
-      const groupAvatar = `/uploads/avatars/${req.file.filename}`;
+      const groupAvatar = await storage.uploadFile(req.file, 'messcast/avatars');
       conversation.groupAvatar = groupAvatar;
       await conversation.save();
 

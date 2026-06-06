@@ -1,87 +1,141 @@
 /**
  * Storage abstraction layer.
  *
- * Current provider: local disk (Express static-served from /uploads).
+ * STORAGE_PROVIDER env var controls which backend is active:
+ *   local      — Express static served from /uploads (dev default, not safe on Render)
+ *   cloudinary — Cloudinary CDN (production default)
  *
- * To switch to a cloud provider (Cloudinary, S3, Firebase Storage):
- *   1. Set STORAGE_PROVIDER env var: 'local' | 'cloudinary' | 's3' | 'firebase'
- *   2. Add the provider-specific SDK + config below.
- *   3. Implement the same interface: { uploadFile, deleteFile, getPublicUrl }.
- *
- * All route handlers should use this module instead of touching `fs` directly,
- * so a single implementation change here swaps the provider everywhere.
+ * Every route that handles file uploads must use:
+ *   multer({ storage: storage.multerStorage(), limits: ..., fileFilter: ... })
+ *   const url = await storage.uploadFile(req.file, 'folder-name');
+ *   await storage.deleteFile(oldUrl);
  */
 
 const path = require('path');
 const fs   = require('fs');
+const multer = require('multer');
 
 const PROVIDER = (process.env.STORAGE_PROVIDER ?? 'local').toLowerCase();
 
-// ─── Local disk (default) ────────────────────────────────────────────────────
+// ─── Cloudinary helpers ───────────────────────────────────────────────────────
+
+function uploadToCloudinary(buffer, options = {}) {
+  const cloudinary = require('../config/cloudinary');
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(options, (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      })
+      .end(buffer);
+  });
+}
+
+function cloudinaryPublicIdFromUrl(url) {
+  // e.g. https://res.cloudinary.com/cloud/image/upload/v123/folder/id.jpg → "folder/id"
+  try {
+    const urlPath   = new URL(url).pathname;
+    const parts     = urlPath.split('/');
+    const uploadIdx = parts.findIndex((p) => p === 'upload');
+    if (uploadIdx < 0) return null;
+    const afterUpload = parts.slice(uploadIdx + 1);
+    const startIdx    = afterUpload[0]?.match(/^v\d+$/) ? 1 : 0;
+    return afterUpload
+      .slice(startIdx)
+      .join('/')
+      .replace(/\.[^.]+$/, ''); // strip extension
+  } catch {
+    return null;
+  }
+}
+
+function cloudinaryResourceType(url) {
+  if (url.includes('/video/upload/')) return 'video';
+  if (url.includes('/raw/upload/'))   return 'raw';
+  return 'image';
+}
+
+// ─── Local disk provider (development) ───────────────────────────────────────
 
 const localProvider = {
-  /**
-   * "Upload" a file that multer already saved to disk.
-   * For local storage this is a no-op — multer writes the file itself.
-   * Returns the public URL path that the client can request.
-   *
-   * @param {string} diskPath  Absolute path where multer wrote the file
-   * @param {string} subdir    Sub-directory inside /uploads, e.g. '' | 'avatars'
-   * @returns {string}         Public path, e.g. /uploads/avatars/avatar_123.jpg
-   */
-  async uploadFile(diskPath, subdir = '') {
-    const filename = path.basename(diskPath);
-    const relative = subdir ? `/uploads/${subdir}/${filename}` : `/uploads/${filename}`;
-    return relative;
+  multerStorage(folder = '') {
+    const dir = path.join(__dirname, '../../uploads', folder);
+    fs.mkdirSync(dir, { recursive: true });
+    return multer.diskStorage({
+      destination: (req, file, cb) => {
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+      },
+    });
   },
 
-  /**
-   * Delete a file from disk given its public URL path.
-   * Silently ignores missing files.
-   *
-   * @param {string} publicUrl  Path like /uploads/avatars/avatar_123.jpg
-   */
+  async uploadFile(file, folder = '') {
+    const filename = path.basename(file.path);
+    return folder ? `/uploads/${folder}/${filename}` : `/uploads/${filename}`;
+  },
+
   async deleteFile(publicUrl) {
-    if (!publicUrl) return;
+    if (!publicUrl || publicUrl.startsWith('http')) return;
     const relative = publicUrl.replace(/^\//, '');
     const absolute = path.join(__dirname, '../../', relative);
-    if (fs.existsSync(absolute)) {
-      fs.unlink(absolute, () => {});
+    if (fs.existsSync(absolute)) fs.unlink(absolute, () => {});
+  },
+
+  getPublicUrl(storedValue) {
+    if (!storedValue) return null;
+    if (storedValue.startsWith('http')) return storedValue;
+    const base = (process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, '');
+    return `${base}${storedValue}`;
+  },
+};
+
+// ─── Cloudinary provider (production) ────────────────────────────────────────
+
+const cloudinaryProvider = {
+  multerStorage() {
+    return multer.memoryStorage();
+  },
+
+  async uploadFile(file, folder = 'messcast/uploads') {
+    const result = await uploadToCloudinary(file.buffer, {
+      folder,
+      resource_type: 'auto',
+      public_id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    });
+    return result.secure_url; // full HTTPS URL stored directly in MongoDB
+  },
+
+  async deleteFile(publicUrl) {
+    if (!publicUrl || !publicUrl.includes('cloudinary.com')) return;
+    const publicId = cloudinaryPublicIdFromUrl(publicUrl);
+    if (!publicId) return;
+    try {
+      const cloudinary = require('../config/cloudinary');
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: cloudinaryResourceType(publicUrl),
+      });
+    } catch (err) {
+      console.warn('[Storage] Cloudinary delete failed:', err.message);
     }
   },
 
-  /**
-   * Returns the full public URL for a stored file.
-   * For local storage, prepend the server base URL from env.
-   *
-   * @param {string} publicPath  e.g. /uploads/avatars/avatar_123.jpg
-   * @returns {string}           e.g. http://localhost:5000/uploads/avatars/avatar_123.jpg
-   */
-  getPublicUrl(publicPath) {
-    const base = (process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, '');
-    return `${base}${publicPath}`;
+  getPublicUrl(storedValue) {
+    return storedValue ?? null; // Cloudinary URLs are already full HTTPS URLs
   },
 };
 
-// ─── Provider registry ────────────────────────────────────────────────────────
-//
-// Swap STORAGE_PROVIDER in .env to activate a different provider.
-// Each provider must expose: uploadFile(diskPath, subdir), deleteFile(url), getPublicUrl(path).
+// ─── Registry ─────────────────────────────────────────────────────────────────
 
-const providers = {
-  local: localProvider,
-
-  // cloudinary: require('./providers/cloudinaryProvider'),
-  // s3:         require('./providers/s3Provider'),
-  // firebase:   require('./providers/firebaseStorageProvider'),
-};
-
-const storage = providers[PROVIDER] ?? localProvider;
+const providers = { local: localProvider, cloudinary: cloudinaryProvider };
+const storage   = providers[PROVIDER] ?? localProvider;
 
 if (!providers[PROVIDER]) {
   console.warn(`[Storage] Unknown STORAGE_PROVIDER="${PROVIDER}", falling back to local disk.`);
 }
 
 console.log(`[Storage] Provider: ${PROVIDER}`);
-
 module.exports = storage;

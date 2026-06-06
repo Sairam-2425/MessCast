@@ -20,6 +20,14 @@ services:
         sync: false          # e.g. https://messcast-backend.onrender.com
       - key: CLIENT_URLS
         sync: false          # comma-separated: https://messcast-admin.onrender.com
+      - key: STORAGE_PROVIDER
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        value: dntjzcrdp
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
       - key: STORAGE_ALERT_MB
         value: "500"
       - key: APP_SCHEME
