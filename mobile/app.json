@@ -26,7 +26,8 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "androidNavigationBar": {
@@ -66,9 +67,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
-      }
+        "projectId": "9b80a82d-2af4-40b8-a2fb-943a4342fdc9"
+      },
+      "router": {}
     },
-    "owner": "REPLACE_WITH_EXPO_USERNAME"
+    "owner": "sairam32873"
   }
 }
