@@ -22,10 +22,15 @@
         "backgroundColor": "#0A0A0F"
       },
       "package": "com.messcast.app",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "androidNavigationBar": {
-      "visible": "leanBack",
+      "visible": "leanback",
       "barStyle": "light-content",
       "backgroundColor": "#0A0A0F"
     },
@@ -49,6 +54,12 @@
           "cameraPermission": "Allow MessCast to access your camera"
         }
       ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow MessCast to record audio for voice messages"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

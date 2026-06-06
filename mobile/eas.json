@@ -18,8 +18,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://messcast-backend.onrender.com",
-        "EXPO_PUBLIC_SOCKET_URL": "https://messcast-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://messcast-1.onrender.com",
+        "EXPO_PUBLIC_SOCKET_URL": "https://messcast-1.onrender.com",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDWxD3DPouM7VQ2cweeG_QuATod7jh2x-0",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "message-cast-57576.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "message-cast-57576",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "message-cast-57576.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "530262389727",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:530262389727:web:1da9e83cf1b1a2ab9a8a6a"
       }
     },
     "production": {
@@ -27,8 +33,14 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://messcast-backend.onrender.com",
-        "EXPO_PUBLIC_SOCKET_URL": "https://messcast-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://messcast-1.onrender.com",
+        "EXPO_PUBLIC_SOCKET_URL": "https://messcast-1.onrender.com",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDWxD3DPouM7VQ2cweeG_QuATod7jh2x-0",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "message-cast-57576.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "message-cast-57576",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "message-cast-57576.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "530262389727",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:530262389727:web:1da9e83cf1b1a2ab9a8a6a"
       }
     }
   },
