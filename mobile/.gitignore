@@ -4,3 +4,11 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Generated native directories (managed workflow — EAS Build regenerates these)
+android/
+ios/
+
+# Local env — never commit
+.env
+.env.local

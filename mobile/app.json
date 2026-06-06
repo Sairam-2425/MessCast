@@ -30,11 +30,6 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
-    "androidNavigationBar": {
-      "visible": "leanback",
-      "barStyle": "light-content",
-      "backgroundColor": "#0A0A0F"
-    },
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -42,6 +37,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-system-ui",
       [
         "expo-notifications",
         {
