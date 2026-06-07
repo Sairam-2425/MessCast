@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Linking } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,6 +15,13 @@ import { format } from 'date-fns';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { BASE_URL } from '../../constants/config';
 import { Message } from '../../store/messageStore';
+import {
+  openDocument,
+  shareDocument,
+  cleanDocumentCacheOnce,
+  getDocumentTypeLabel,
+  NoViewerAppError,
+} from '../../lib/documentViewer';
 import { ReplyPreview } from './ReplyPreview';
 import { ReactionBar } from './ReactionBar';
 import { ReadReceipt } from './ReadReceipt';
@@ -97,7 +104,7 @@ function formatFileSize(bytes?: number | null): string | null {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function fileTypeLabel(fileName?: string | null): string {
+function fileExtension(fileName?: string | null): string {
   const ext = fileName?.split('.').pop();
   return ext && ext.length <= 5 ? ext.toUpperCase() : 'FILE';
 }
@@ -109,42 +116,54 @@ const DOC_ICON_COLORS: Record<string, string> = {
   PPT:  '#D14E24', PPTX: '#D14E24',
 };
 
-function DocumentRow({ uri, fileName, fileSize, isSent }: {
+function DocumentRow({ uri, fileName, fileSize, mimeType, isSent }: {
   uri: string | null;
   fileName: string | null;
   fileSize?: number | null;
+  mimeType?: string | null;
   isSent: boolean;
 }) {
   const [opening, setOpening] = useState(false);
-  const type      = fileTypeLabel(fileName);
+  const ext       = fileExtension(fileName);
+  const typeLabel = getDocumentTypeLabel(fileName);
   const sizeLabel = formatFileSize(fileSize);
-  const iconColor = DOC_ICON_COLORS[type] ?? Colors.primary;
+  const iconColor = DOC_ICON_COLORS[ext] ?? Colors.primary;
+
+  useEffect(() => { cleanDocumentCacheOnce(); }, []);
 
   async function open() {
-    if (!uri || opening) return;
-    console.log('[Document] opening', uri);
+    if (!uri || opening || !fileName) return;
     setOpening(true);
     try {
-      // Linking.openURL hands the URL to the OS (ACTION_VIEW on Android, the
-      // default handler on iOS), which lets the device pick a native viewer —
-      // a PDF reader, Word/Office, Google Docs, etc. An in-app browser tab
-      // (WebBrowser) can only render what the browser itself supports, which
-      // for Chrome Custom Tabs / SFSafariViewController means PDFs sometimes
-      // work but DOC/DOCX/TXT typically fail to display — so try the OS first
-      // and only fall back to the in-app browser if it can't handle the URL.
-      const canOpen = await Linking.canOpenURL(uri);
-      if (canOpen) {
-        await Linking.openURL(uri);
+      await openDocument({ uri, fileName, mimeType });
+    } catch (err: unknown) {
+      console.log('[Document] failed to open', uri, err instanceof Error ? err.message : err);
+      if (err instanceof NoViewerAppError) {
+        Alert.alert(
+          'No application found to open this file.',
+          `Install an app that can open ${typeLabel.toLowerCase()} files, or save/share it instead.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Share',
+              onPress: () => {
+                shareDocument({ uri, fileName, mimeType }).catch((shareErr: unknown) => {
+                  console.log('[Document] share failed', shareErr instanceof Error ? shareErr.message : shareErr);
+                  Alert.alert('Could not share file', 'Please try again.');
+                });
+              },
+            },
+            {
+              text: 'Open in Browser',
+              onPress: () => {
+                WebBrowser.openBrowserAsync(uri).catch(() => {
+                  Alert.alert('Could not open file', 'Please try again.');
+                });
+              },
+            },
+          ]
+        );
       } else {
-        console.log('[Document] Linking cannot open URL, falling back to WebBrowser', uri);
-        await WebBrowser.openBrowserAsync(uri);
-      }
-    } catch (linkingErr) {
-      console.log('[Document] Linking.openURL failed', uri, linkingErr instanceof Error ? linkingErr.message : linkingErr);
-      try {
-        await WebBrowser.openBrowserAsync(uri);
-      } catch (browserErr) {
-        console.log('[Document] WebBrowser fallback failed', uri, browserErr instanceof Error ? browserErr.message : browserErr);
         Alert.alert('Could not open file', 'This document could not be opened. It may no longer be available.');
       }
     } finally {
@@ -164,11 +183,14 @@ function DocumentRow({ uri, fileName, fileSize, isSent }: {
           {fileName ?? 'Document'}
         </Text>
         <Text style={[styles.docMeta, isSent && styles.docMetaSent]} numberOfLines={1}>
-          {[sizeLabel, type].filter(Boolean).join(' · ')}
+          {[typeLabel, sizeLabel].filter(Boolean).join(' • ')}
+        </Text>
+        <Text style={[styles.docHint, isSent && styles.docMetaSent]} numberOfLines={1}>
+          {opening ? 'Opening…' : uri ? 'Tap to open' : 'Unavailable'}
         </Text>
       </View>
       {uri ? (
-        <Feather name="download" size={16} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
+        <Feather name="chevron-right" size={16} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
       ) : (
         <Feather name="alert-circle" size={16} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
       )}
@@ -339,6 +361,7 @@ export function MessageBubble({
                   : null}
                 fileName={message.fileName ?? null}
                 fileSize={message.fileSize}
+                mimeType={message.fileMimeType}
                 isSent={isSent}
               />
             )}
@@ -486,6 +509,7 @@ const styles = StyleSheet.create({
   },
   docInfo: { flex: 1, gap: 2 },
   docMeta: { color: Colors.textTertiary, fontSize: FontSize.xs },
+  docHint: { color: Colors.textTertiary, fontSize: FontSize.xs, opacity: 0.7 },
   docMetaSent: { color: 'rgba(255,255,255,0.7)' },
   fileText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '600' },
   fileTextSent: { color: '#fff' },
