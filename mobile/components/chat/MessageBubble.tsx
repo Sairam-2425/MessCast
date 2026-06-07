@@ -89,31 +89,70 @@ function ChatImage({ uri, onPress }: { uri: string | null; onPress: () => void }
   );
 }
 
-// ── Document / generic file row — tap to open in an in-app browser ───────────
-function DocumentRow({ uri, fileName, isSent }: { uri: string | null; fileName: string | null; isSent: boolean }) {
+// ── Document card (WhatsApp-style) — icon + name + size/type, tap to open ────
+function formatFileSize(bytes?: number | null): string | null {
+  if (!bytes || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileTypeLabel(fileName?: string | null): string {
+  const ext = fileName?.split('.').pop();
+  return ext && ext.length <= 5 ? ext.toUpperCase() : 'FILE';
+}
+
+const DOC_ICON_COLORS: Record<string, string> = {
+  PDF:  '#E2574C',
+  DOC:  '#2B79C2', DOCX: '#2B79C2',
+  XLS:  '#1D7044', XLSX: '#1D7044',
+  PPT:  '#D14E24', PPTX: '#D14E24',
+};
+
+function DocumentRow({ uri, fileName, fileSize, isSent }: {
+  uri: string | null;
+  fileName: string | null;
+  fileSize?: number | null;
+  isSent: boolean;
+}) {
   const [opening, setOpening] = useState(false);
+  const type      = fileTypeLabel(fileName);
+  const sizeLabel = formatFileSize(fileSize);
+  const iconColor = DOC_ICON_COLORS[type] ?? Colors.primary;
 
   async function open() {
     if (!uri || opening) return;
     setOpening(true);
     try {
       await WebBrowser.openBrowserAsync(uri);
-    } catch {
-      Alert.alert('Could not open file', 'Please try again.');
+    } catch (err) {
+      console.log('[Document] failed to open', uri, err instanceof Error ? err.message : err);
+      Alert.alert('Could not open file', 'This document could not be opened. It may no longer be available.');
     } finally {
       setOpening(false);
     }
   }
 
   return (
-    <TouchableOpacity style={styles.fileRow} onPress={open} activeOpacity={0.7} disabled={!uri}>
-      {opening
-        ? <ActivityIndicator size="small" color={isSent ? '#fff' : Colors.primary} />
-        : <Feather name="file-text" size={18} color={isSent ? 'rgba(255,255,255,0.85)' : Colors.primary} />}
-      <Text style={[styles.fileText, isSent && styles.fileTextSent]} numberOfLines={2}>
-        {fileName ?? 'File'}
-      </Text>
-      <Feather name="download" size={15} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
+    <TouchableOpacity style={styles.docCard} onPress={open} activeOpacity={0.7} disabled={!uri}>
+      <View style={[styles.docIcon, { backgroundColor: isSent ? 'rgba(255,255,255,0.18)' : `${iconColor}1A` }]}>
+        {opening
+          ? <ActivityIndicator size="small" color={isSent ? '#fff' : iconColor} />
+          : <Feather name="file-text" size={20} color={isSent ? '#fff' : iconColor} />}
+      </View>
+      <View style={styles.docInfo}>
+        <Text style={[styles.fileText, isSent && styles.fileTextSent]} numberOfLines={1}>
+          {fileName ?? 'Document'}
+        </Text>
+        <Text style={[styles.docMeta, isSent && styles.docMetaSent]} numberOfLines={1}>
+          {[sizeLabel, type].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+      {uri ? (
+        <Feather name="download" size={16} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
+      ) : (
+        <Feather name="alert-circle" size={16} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
+      )}
     </TouchableOpacity>
   );
 }
@@ -280,6 +319,7 @@ export function MessageBubble({
                     : `${BASE_URL}${message.fileUrl}`
                   : null}
                 fileName={message.fileName ?? null}
+                fileSize={message.fileSize}
                 isSent={isSent}
               />
             )}
@@ -409,8 +449,26 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: FontSize.xs,
   },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2, minWidth: 160 },
-  fileText: { color: Colors.textPrimary, fontSize: FontSize.sm, flex: 1 },
+  docCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    minWidth: 200,
+    maxWidth: 240,
+  },
+  docIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docInfo: { flex: 1, gap: 2 },
+  docMeta: { color: Colors.textTertiary, fontSize: FontSize.xs },
+  docMetaSent: { color: 'rgba(255,255,255,0.7)' },
+  fileText: { color: Colors.textPrimary, fontSize: FontSize.sm, fontWeight: '600' },
   fileTextSent: { color: '#fff' },
 
   meta: {

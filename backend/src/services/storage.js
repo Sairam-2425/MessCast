@@ -67,6 +67,7 @@ const localProvider = {
   multerStorage(folder = '') {
     const dir = path.join(__dirname, '../../uploads', folder);
     fs.mkdirSync(dir, { recursive: true });
+    console.log(`[Storage] Local upload directory ready: ${dir}`);
     return multer.diskStorage({
       destination: (req, file, cb) => {
         fs.mkdirSync(dir, { recursive: true });
@@ -74,7 +75,9 @@ const localProvider = {
       },
       filename: (req, file, cb) => {
         const ext = path.extname(file.originalname).toLowerCase();
-        cb(null, `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+        const name = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+        console.log(`[Storage] Saving "${file.originalname}" → ${path.join(dir, name)}`);
+        cb(null, name);
       },
     });
   },
@@ -87,7 +90,9 @@ const localProvider = {
     // string here produced URLs that 404 even on the same running instance.
     const uploadsRoot = path.join(__dirname, '../../uploads');
     const relative    = path.relative(uploadsRoot, file.path).split(path.sep).join('/');
-    return `/uploads/${relative}`;
+    const publicPath  = `/uploads/${relative}`;
+    console.log(`[Storage] Saved file path: ${file.path} → public path: ${publicPath}`);
+    return publicPath;
   },
 
   async deleteFile(publicUrl) {
@@ -101,19 +106,21 @@ const localProvider = {
     if (!storedValue) return null;
     if (storedValue.startsWith('http')) return storedValue;
 
+    let url;
     if (process.env.BASE_URL) {
-      return `${process.env.BASE_URL.replace(/\/$/, '')}${storedValue}`;
-    }
-
-    // No BASE_URL configured. In production this would build an unreachable
-    // localhost URL for physical devices, so surface the raw stored path
-    // instead of fabricating one — and warn loudly so it gets fixed.
-    if (process.env.NODE_ENV === 'production') {
+      url = `${process.env.BASE_URL.replace(/\/$/, '')}${storedValue}`;
+    } else if (process.env.NODE_ENV === 'production') {
+      // No BASE_URL configured. In production this would build an unreachable
+      // localhost URL for physical devices, so surface the raw stored path
+      // instead of fabricating one — and warn loudly so it gets fixed.
       console.warn('[Storage] BASE_URL is not set in production — returning raw path for', storedValue);
       return storedValue;
+    } else {
+      url = `http://localhost:${process.env.PORT ?? 5000}${storedValue}`;
     }
 
-    return `http://localhost:${process.env.PORT ?? 5000}${storedValue}`;
+    console.log(`[Storage] Generated public URL: ${storedValue} → ${url}`);
+    return url;
   },
 };
 
@@ -125,11 +132,22 @@ const cloudinaryProvider = {
   },
 
   async uploadFile(file, folder = 'messcast/uploads') {
+    // resource_type: 'auto' routes documents (PDF, DOCX, ...) into Cloudinary's
+    // "image" delivery type, which the account's default security settings block
+    // from public delivery (returns 401 — Cloudinary won't serve PDF/ZIP as images
+    // to prevent embedded-script XSS). "raw" delivers the file byte-for-byte with
+    // no such restriction, so non-media documents must use it explicitly.
+    const resourceType = file.mimetype?.startsWith('image/') ? 'image'
+      : file.mimetype?.startsWith('video/') || file.mimetype?.startsWith('audio/') ? 'video'
+      : 'raw';
+
+    const publicId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const result = await uploadToCloudinary(file.buffer, {
       folder,
-      resource_type: 'auto',
-      public_id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      resource_type: resourceType,
+      public_id: publicId,
     });
+    console.log(`[Storage] Uploaded "${file.originalname}" (${file.mimetype}) → ${result.secure_url} [resource_type=${resourceType}]`);
     return result.secure_url; // full HTTPS URL stored directly in MongoDB
   },
 

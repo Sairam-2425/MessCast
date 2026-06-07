@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { Audio } from 'expo-av';
 import Animated, {
   useSharedValue,
@@ -23,6 +23,7 @@ function msToTime(ms: number): string {
 export function VoiceMessageBubble({ fileUrl, isSent }: Props) {
   const [sound, setSound]     = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [pos, setPos]         = useState(0);
   const [dur, setDur]         = useState(0);
   const progress              = useSharedValue(0);
@@ -34,70 +35,53 @@ export function VoiceMessageBubble({ fileUrl, isSent }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullUrl]);
 
-  // Preload duration on mount so the time label is visible before first play.
-  // Use a ref for the probe sound so cleanup can unload it even if the async
-  // completes after the cleanup function has already run.
-  const probeRef = useRef<Audio.Sound | null>(null);
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-        const { sound: s, status } = await Audio.Sound.createAsync(
-          { uri: fullUrl },
-          { shouldPlay: false }
-        );
-        probeRef.current = s;
-        if (active && status.isLoaded && status.durationMillis) {
-          setDur(status.durationMillis);
-        } else if (!active) {
-          // Cleanup already ran — unload immediately
-          s.unloadAsync();
-          probeRef.current = null;
-        }
-      } catch {}
-    })();
-    return () => {
-      active = false;
-      probeRef.current?.unloadAsync();
-      probeRef.current = null;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullUrl]);
-
+  // Single sound instance shared by duration display and playback — creating a
+  // second concurrent Audio.Sound (e.g. a "probe" just to read duration) was
+  // causing audio-session conflicts that made playback unreliable on Android.
   useEffect(() => {
     return () => { sound?.unloadAsync(); };
   }, [sound]);
 
+  function onStatusUpdate(st: Awaited<ReturnType<Audio.Sound['getStatusAsync']>>) {
+    if (!st.isLoaded) return;
+    const d = st.durationMillis ?? 0;
+    const p = st.positionMillis;
+    setDur(d);
+    setPos(p);
+    progress.value = withTiming(d > 0 ? p / d : 0, { duration: 100 });
+    if (st.didJustFinish) {
+      setPlaying(false);
+      setPos(0);
+      progress.value = withTiming(0);
+    }
+  }
+
   async function toggle() {
+    if (loading) return; // guard against double-taps while a sound is loading
+
     if (sound) {
-      if (playing) {
-        await sound.pauseAsync();
-        setPlaying(false);
-      } else {
-        await sound.playAsync();
-        setPlaying(true);
+      try {
+        if (playing) {
+          await sound.pauseAsync();
+          setPlaying(false);
+        } else {
+          await sound.playAsync();
+          setPlaying(true);
+        }
+      } catch (err: unknown) {
+        console.log('[Voice] play/pause failed', fullUrl, err instanceof Error ? err.message : err);
+        Alert.alert('Playback error', 'Could not play this voice message. Please try again.');
       }
       return;
     }
+
+    setLoading(true);
     try {
       await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
       const { sound: s, status } = await Audio.Sound.createAsync(
         { uri: fullUrl },
         { shouldPlay: true },
-        (st) => {
-          if (!st.isLoaded) return;
-          const d = st.durationMillis ?? dur;
-          const p = st.positionMillis;
-          setDur(d);
-          setPos(p);
-          progress.value = withTiming(d > 0 ? p / d : 0, { duration: 100 });
-          if (st.didJustFinish) {
-            setPlaying(false);
-            setPos(0);
-            progress.value = withTiming(0);
-          }
-        }
+        onStatusUpdate
       );
       setSound(s);
       if (status.isLoaded) setDur(status.durationMillis ?? 0);
@@ -105,6 +89,8 @@ export function VoiceMessageBubble({ fileUrl, isSent }: Props) {
     } catch (err: unknown) {
       console.log('[Voice] playback failed', fullUrl, err instanceof Error ? err.message : err);
       Alert.alert('Playback error', 'Could not play this voice message. Please try again.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -118,8 +104,10 @@ export function VoiceMessageBubble({ fileUrl, isSent }: Props) {
 
   return (
     <View style={styles.row}>
-      <TouchableOpacity onPress={toggle} style={styles.playBtn} activeOpacity={0.7}>
-        <Feather name={playing ? 'pause' : 'play'} size={17} color="#fff" />
+      <TouchableOpacity onPress={toggle} style={styles.playBtn} activeOpacity={0.7} disabled={loading}>
+        {loading
+          ? <ActivityIndicator size="small" color="#fff" />
+          : <Feather name={playing ? 'pause' : 'play'} size={17} color="#fff" />}
       </TouchableOpacity>
 
       <View style={styles.body}>

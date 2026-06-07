@@ -659,9 +659,15 @@ export default function ChatRoom() {
         )}
 
         {/* ── KEYBOARD AVOIDING AREA ── */}
+        {/* Android's AndroidManifest sets windowSoftInputMode="adjustResize", so the
+            OS already resizes the window when the keyboard opens. Also applying
+            KeyboardAvoidingView's "height" behavior on top of that double-adjusts
+            the layout, producing the upward jump / unstable list / shifting input
+            reported on Android. iOS has no native resize equivalent, so it still
+            needs "padding". */}
         <KeyboardAvoidingView
           style={styles.kavContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + HEADER_HEIGHT : 0}
         >
           <FlatList
