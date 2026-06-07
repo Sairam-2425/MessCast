@@ -12,7 +12,7 @@ import {
   BackHandler,
   TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -34,6 +34,8 @@ import { useChatStore } from '../../store/chatStore';
 import { getSocket } from '../../lib/socket';
 import api from '../../lib/axios';
 import { MESSAGE_PAGE_SIZE } from '../../constants/config';
+
+const HEADER_HEIGHT = 56;
 
 // ─── Date separator ───────────────────────────────────────────────────────────
 
@@ -103,6 +105,7 @@ export default function ChatRoom() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const conversationId = (Array.isArray(rawId) ? rawId[0] : rawId) ?? '';
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const user = useAuthStore((s) => s.user);
   const {
@@ -658,8 +661,8 @@ export default function ChatRoom() {
         {/* ── KEYBOARD AVOIDING AREA ── */}
         <KeyboardAvoidingView
           style={styles.kavContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + HEADER_HEIGHT : 0}
         >
           <FlatList
             ref={flatRef}
@@ -747,7 +750,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.glassBorder,
     gap:               Spacing.sm,
-    minHeight:         56,
+    minHeight:         HEADER_HEIGHT,
   },
   backBtn:    { padding: Spacing.sm },
   headerInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

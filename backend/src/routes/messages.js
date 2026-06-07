@@ -347,6 +347,10 @@ router.post('/:id/react', async (req, res, next) => {
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ error: 'Message not found' });
 
+    if (message.sender.toString() === req.user.id) {
+      return res.status(403).json({ error: 'You cannot react to your own message' });
+    }
+
     const reactionGroup = message.reactions.find((r) => r.emoji === emoji);
     if (reactionGroup) {
       const userIdx = reactionGroup.users.map((u) => u.toString()).indexOf(req.user.id);

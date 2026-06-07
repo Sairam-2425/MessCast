@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { Audio } from 'expo-av';
 import Animated, {
   useSharedValue,
@@ -28,6 +28,11 @@ export function VoiceMessageBubble({ fileUrl, isSent }: Props) {
   const progress              = useSharedValue(0);
 
   const fullUrl = fileUrl.startsWith('http') ? fileUrl : `${BASE_URL}${fileUrl}`;
+
+  useEffect(() => {
+    console.log('[Voice] playback URL', fullUrl);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullUrl]);
 
   // Preload duration on mount so the time label is visible before first play.
   // Use a ref for the probe sound so cleanup can unload it even if the async
@@ -97,7 +102,10 @@ export function VoiceMessageBubble({ fileUrl, isSent }: Props) {
       setSound(s);
       if (status.isLoaded) setDur(status.durationMillis ?? 0);
       setPlaying(true);
-    } catch {}
+    } catch (err: unknown) {
+      console.log('[Voice] playback failed', fullUrl, err instanceof Error ? err.message : err);
+      Alert.alert('Playback error', 'Could not play this voice message. Please try again.');
+    }
   }
 
   const fillStyle = useAnimatedStyle(() => ({

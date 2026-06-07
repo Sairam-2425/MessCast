@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -35,6 +35,58 @@ interface MessageBubbleProps {
 }
 
 const SWIPE_THRESHOLD = 58;
+
+// ── Chat image with loading / error / retry states ───────────────────────────
+// Wrapping the <Image> in a clipped container (rather than putting borderRadius
+// directly on the Image) avoids the solid-black-rectangle rendering glitch that
+// shows up for rounded images on some Android release builds.
+function ChatImage({ uri, onPress }: { uri: string | null; onPress: () => void }) {
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    setStatus('loading');
+  }, [uri]);
+
+  if (!uri) {
+    return (
+      <View style={[styles.imageThumbnail, styles.imageCenter]}>
+        <Feather name="image" size={28} color={Colors.textTertiary} />
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.9} disabled={status !== 'loaded'}>
+      <View style={styles.imageThumbnail}>
+        <Image
+          key={retryKey}
+          source={{ uri }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+          onLoadStart={() => setStatus('loading')}
+          onLoad={() => setStatus('loaded')}
+          onError={() => setStatus('error')}
+        />
+        {status === 'loading' && (
+          <View style={[StyleSheet.absoluteFillObject, styles.imageCenter]}>
+            <ActivityIndicator color={Colors.textTertiary} />
+          </View>
+        )}
+        {status === 'error' && (
+          <TouchableOpacity
+            style={[StyleSheet.absoluteFillObject, styles.imageCenter]}
+            onPress={() => { setStatus('loading'); setRetryKey((k) => k + 1); }}
+            activeOpacity={0.7}
+          >
+            <Feather name="refresh-cw" size={20} color={Colors.textSecondary} />
+            <Text style={styles.imageErrorText}>Tap to retry</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export function MessageBubble({
   message,
@@ -173,7 +225,12 @@ export function MessageBubble({
             {message.type === 'text' ? (
               <Text style={styles.text}>{message.content}</Text>
             ) : message.fileMimeType?.startsWith('image/') ? (
-              <TouchableOpacity
+              <ChatImage
+                uri={message.fileUrl
+                  ? message.fileUrl.startsWith('http')
+                    ? message.fileUrl
+                    : `${BASE_URL}${message.fileUrl}`
+                  : null}
                 onPress={() => {
                   const url = message.fileUrl
                     ? message.fileUrl.startsWith('http')
@@ -182,20 +239,7 @@ export function MessageBubble({
                     : null;
                   if (url) onImagePress?.(url);
                 }}
-                activeOpacity={0.9}
-              >
-                <Image
-                  source={{
-                    uri: message.fileUrl
-                      ? message.fileUrl.startsWith('http')
-                        ? message.fileUrl
-                        : `${BASE_URL}${message.fileUrl}`
-                      : undefined,
-                  }}
-                  style={styles.imageThumbnail}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
+              />
             ) : message.fileMimeType?.startsWith('audio/') ? (
               <VoiceMessageBubble fileUrl={message.fileUrl!} isSent={isSent} />
             ) : (
@@ -226,6 +270,7 @@ export function MessageBubble({
           <ReactionBar
             reactions={message.reactions ?? []}
             currentUserId={currentUserId}
+            disabled={isSent}
             onReact={(emoji) => onReact?.(message._id, emoji)}
           />
         </Animated.View>
@@ -317,7 +362,17 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 10,
+    overflow: 'hidden',
     backgroundColor: Colors.bgLayer2,
+  },
+  imageCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  imageErrorText: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
   },
   fileRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fileIcon: { fontSize: 16 },

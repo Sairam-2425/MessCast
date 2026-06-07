@@ -11,9 +11,11 @@ interface ReactionBarProps {
   reactions: Reaction[];
   currentUserId: string;
   onReact: (emoji: string) => void;
+  /** Own messages: reactions are view-only — users cannot react to (or toggle on) their own messages. */
+  disabled?: boolean;
 }
 
-export function ReactionBar({ reactions, currentUserId, onReact }: ReactionBarProps) {
+export function ReactionBar({ reactions, currentUserId, onReact, disabled }: ReactionBarProps) {
   if (!reactions?.length) return null;
 
   return (
@@ -24,8 +26,9 @@ export function ReactionBar({ reactions, currentUserId, onReact }: ReactionBarPr
           <TouchableOpacity
             key={r.emoji}
             style={[styles.pill, hasReacted && styles.pillActive]}
-            onPress={() => onReact(r.emoji)}
-            activeOpacity={0.7}
+            onPress={() => { if (!disabled) onReact(r.emoji); }}
+            activeOpacity={disabled ? 1 : 0.7}
+            disabled={disabled}
           >
             <Text style={styles.emoji}>{r.emoji}</Text>
             <Text style={[styles.count, hasReacted && styles.countActive]}>{r.users.length}</Text>

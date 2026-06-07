@@ -118,24 +118,28 @@ export function MessageContextMenu({
           </View>
         )}
 
-        {/* Emoji reaction strip */}
-        <View style={styles.reactionStrip}>
-          {ALLOWED_REACTIONS.map((emoji) => {
-            const isActive = myReaction === emoji;
-            return (
-              <TouchableOpacity
-                key={emoji}
-                style={[styles.reactionBtn, isActive && styles.reactionBtnActive]}
-                onPress={() => handleReact(emoji)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.reactionEmoji}>{emoji}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {/* Emoji reaction strip — hidden for your own messages (you can't react to yourself) */}
+        {!isSent && (
+          <>
+            <View style={styles.reactionStrip}>
+              {ALLOWED_REACTIONS.map((emoji) => {
+                const isActive = myReaction === emoji;
+                return (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={[styles.reactionBtn, isActive && styles.reactionBtnActive]}
+                    onPress={() => handleReact(emoji)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-        <View style={styles.divider} />
+            <View style={styles.divider} />
+          </>
+        )}
 
         {/* Action list */}
         <ScrollView bounces={false} showsVerticalScrollIndicator={false}>

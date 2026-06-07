@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   PanResponder,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Colors, FontSize, Radius, Spacing } from '../../constants/theme';
 import { Message } from '../../store/messageStore';
 import { getSocket } from '../../lib/socket';
@@ -77,7 +80,20 @@ export function InputBar({
   }));
 
   const canSend       = text.trim().length > 0;
-  const bottomPadding = insets.bottom > 0 ? insets.bottom : 8;
+
+  // While the keyboard is open, the OS keyboard surface already covers the
+  // bottom safe area — adding the inset on top of it would leave a dead gap
+  // between the input bar and the keyboard.
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvt, () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
+  const bottomPadding = keyboardVisible ? 8 : (insets.bottom > 0 ? insets.bottom : 8);
 
   function emitTyping() {
     socket.emit('typing', { conversationId });
@@ -139,6 +155,20 @@ export function InputBar({
   async function uploadFile(uri: string, mimeType: string, fileName: string) {
     setUploading(true);
     try {
+      let fileSize: number | null = null;
+      try {
+        const info = await FileSystem.getInfoAsync(uri);
+        if (info.exists && !info.isDirectory) fileSize = info.size ?? null;
+      } catch {
+        // content:// URIs from some Android pickers can't be probed — non-fatal
+      }
+      console.log('[Upload] starting', { uri, mimeType, fileName, fileSize });
+
+      if (fileSize === 0) {
+        Alert.alert('Error', 'The selected file appears to be empty. Please try again.');
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', { uri, type: mimeType, name: fileName } as unknown as Blob);
       formData.append('conversationId', conversationId);
@@ -146,9 +176,20 @@ export function InputBar({
       const { data } = await api.post('/api/messages/file', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      console.log('[Upload] response received', {
+        messageId: data?._id,
+        fileUrl: data?.fileUrl,
+        fileSize: data?.fileSize,
+        fileMimeType: data?.fileMimeType,
+      });
+      if (!data?.fileUrl) {
+        Alert.alert('Error', 'Upload succeeded but no file URL was returned. Please try again.');
+        return;
+      }
       onMessageSent(data);
       onCancelReply();
     } catch (err: unknown) {
+      console.log('[Upload] failed', err instanceof Error ? err.message : err);
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to upload');
     } finally {
       setUploading(false);
@@ -211,6 +252,7 @@ export function InputBar({
     try {
       await rec.stopAndUnloadAsync();
       const uri = rec.getURI();
+      console.log('[Voice] recording stopped', { uri, durationSec: currentDuration, cancelled: cancel });
       // Use recDuration from the ref snapshot; minimum 1 second to avoid accidental taps
       if (!cancel && uri && currentDuration >= 1) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -218,8 +260,8 @@ export function InputBar({
         const mimeType = ext === 'mp4' ? 'audio/mp4' : `audio/${ext}`;
         await uploadFile(uri, mimeType, `voice_${Date.now()}.${ext}`);
       }
-    } catch {
-      // recording already cleaned up
+    } catch (err: unknown) {
+      console.log('[Voice] failed to finalize recording', err instanceof Error ? err.message : err);
     }
   }
 
