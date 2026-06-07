@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert, StyleSheet, Linking } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -122,12 +122,31 @@ function DocumentRow({ uri, fileName, fileSize, isSent }: {
 
   async function open() {
     if (!uri || opening) return;
+    console.log('[Document] opening', uri);
     setOpening(true);
     try {
-      await WebBrowser.openBrowserAsync(uri);
-    } catch (err) {
-      console.log('[Document] failed to open', uri, err instanceof Error ? err.message : err);
-      Alert.alert('Could not open file', 'This document could not be opened. It may no longer be available.');
+      // Linking.openURL hands the URL to the OS (ACTION_VIEW on Android, the
+      // default handler on iOS), which lets the device pick a native viewer —
+      // a PDF reader, Word/Office, Google Docs, etc. An in-app browser tab
+      // (WebBrowser) can only render what the browser itself supports, which
+      // for Chrome Custom Tabs / SFSafariViewController means PDFs sometimes
+      // work but DOC/DOCX/TXT typically fail to display — so try the OS first
+      // and only fall back to the in-app browser if it can't handle the URL.
+      const canOpen = await Linking.canOpenURL(uri);
+      if (canOpen) {
+        await Linking.openURL(uri);
+      } else {
+        console.log('[Document] Linking cannot open URL, falling back to WebBrowser', uri);
+        await WebBrowser.openBrowserAsync(uri);
+      }
+    } catch (linkingErr) {
+      console.log('[Document] Linking.openURL failed', uri, linkingErr instanceof Error ? linkingErr.message : linkingErr);
+      try {
+        await WebBrowser.openBrowserAsync(uri);
+      } catch (browserErr) {
+        console.log('[Document] WebBrowser fallback failed', uri, browserErr instanceof Error ? browserErr.message : browserErr);
+        Alert.alert('Could not open file', 'This document could not be opened. It may no longer be available.');
+      }
     } finally {
       setOpening(false);
     }

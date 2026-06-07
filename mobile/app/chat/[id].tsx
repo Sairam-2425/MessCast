@@ -659,15 +659,16 @@ export default function ChatRoom() {
         )}
 
         {/* ── KEYBOARD AVOIDING AREA ── */}
-        {/* Android's AndroidManifest sets windowSoftInputMode="adjustResize", so the
-            OS already resizes the window when the keyboard opens. Also applying
-            KeyboardAvoidingView's "height" behavior on top of that double-adjusts
-            the layout, producing the upward jump / unstable list / shifting input
-            reported on Android. iOS has no native resize equivalent, so it still
-            needs "padding". */}
+        {/* Expo 54 / RN 0.81 enable Android edge-to-edge by default
+            (gradle.properties: edgeToEdgeEnabled=true), and edge-to-edge windows
+            do NOT honor android:windowSoftInputMode="adjustResize" — the OS no
+            longer resizes the content area, so the keyboard simply overlaps it.
+            JS-level avoidance is therefore required on both platforms: "height"
+            shrinks the wrapped view by the keyboard height on Android, "padding"
+            (with an offset for the fixed header) does the equivalent on iOS. */}
         <KeyboardAvoidingView
           style={styles.kavContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + HEADER_HEIGHT : 0}
         >
           <FlatList
@@ -682,6 +683,12 @@ export default function ChatRoom() {
             onEndReached={loadMore}
             onEndReachedThreshold={0.2}
             onScrollToIndexFailed={() => {}}
+            // Keeps the currently-visible message anchored in place when items
+            // are added above it (pagination) or the list reflows (keyboard
+            // open/close), instead of letting FlatList silently jump the
+            // scroll offset — this is what produced the "screen jumps upward"
+            // behavior after sending/receiving while the keyboard animates.
+            maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 100 }}
             ListHeaderComponent={
               loadingMore
                 ? <ActivityIndicator color={Colors.primary} style={{ padding: Spacing.md }} />
