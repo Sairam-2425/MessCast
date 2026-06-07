@@ -15,7 +15,13 @@ const path = require('path');
 const fs   = require('fs');
 const multer = require('multer');
 
-const PROVIDER = (process.env.STORAGE_PROVIDER ?? 'local').toLowerCase();
+// Local disk storage can never work on a host with an ephemeral filesystem
+// (e.g. Render) — files written there vanish on the next restart/redeploy.
+// If STORAGE_PROVIDER isn't explicitly set, default to the only provider that
+// actually persists in production rather than silently falling back to local.
+const PROVIDER = (
+  process.env.STORAGE_PROVIDER ?? (process.env.NODE_ENV === 'production' ? 'cloudinary' : 'local')
+).toLowerCase();
 
 // ─── Cloudinary helpers ───────────────────────────────────────────────────────
 
