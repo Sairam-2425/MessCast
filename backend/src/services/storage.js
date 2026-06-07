@@ -88,8 +88,20 @@ const localProvider = {
   getPublicUrl(storedValue) {
     if (!storedValue) return null;
     if (storedValue.startsWith('http')) return storedValue;
-    const base = (process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, '');
-    return `${base}${storedValue}`;
+
+    if (process.env.BASE_URL) {
+      return `${process.env.BASE_URL.replace(/\/$/, '')}${storedValue}`;
+    }
+
+    // No BASE_URL configured. In production this would build an unreachable
+    // localhost URL for physical devices, so surface the raw stored path
+    // instead of fabricating one — and warn loudly so it gets fixed.
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[Storage] BASE_URL is not set in production — returning raw path for', storedValue);
+      return storedValue;
+    }
+
+    return `http://localhost:${process.env.PORT ?? 5000}${storedValue}`;
   },
 };
 
