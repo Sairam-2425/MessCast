@@ -82,7 +82,7 @@ router.post('/avatar', avatarUpload.single('avatar'), async (req, res, next) => 
       await storage.deleteFile(user.avatarUrl);
     }
 
-    const avatarUrl = await storage.uploadFile(req.file, 'messcast/avatars');
+    const avatarUrl = storage.getPublicUrl(await storage.uploadFile(req.file, 'messcast/avatars'));
     user.avatarUrl = avatarUrl;
     await user.save();
 

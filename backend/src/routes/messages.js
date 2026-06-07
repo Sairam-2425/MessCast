@@ -265,7 +265,7 @@ router.post('/file', async (req, res, next) => {
         return res.status(403).json({ error: 'Not a member' });
       }
 
-      const fileUrl = await storage.uploadFile(req.file, 'messcast/uploads');
+      const fileUrl = storage.getPublicUrl(await storage.uploadFile(req.file, 'messcast/uploads'));
       const msgData = {
         conversation: conversationId,
         sender: req.user.id,

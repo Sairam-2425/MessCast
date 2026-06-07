@@ -348,7 +348,7 @@ router.post('/:id/avatar', (req, res, next) => {
         await storage.deleteFile(conversation.groupAvatar);
       }
 
-      const groupAvatar = await storage.uploadFile(req.file, 'messcast/avatars');
+      const groupAvatar = storage.getPublicUrl(await storage.uploadFile(req.file, 'messcast/avatars'));
       conversation.groupAvatar = groupAvatar;
       await conversation.save();
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -84,6 +85,35 @@ function ChatImage({ uri, onPress }: { uri: string | null; onPress: () => void }
           </TouchableOpacity>
         )}
       </View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Document / generic file row — tap to open in an in-app browser ───────────
+function DocumentRow({ uri, fileName, isSent }: { uri: string | null; fileName: string | null; isSent: boolean }) {
+  const [opening, setOpening] = useState(false);
+
+  async function open() {
+    if (!uri || opening) return;
+    setOpening(true);
+    try {
+      await WebBrowser.openBrowserAsync(uri);
+    } catch {
+      Alert.alert('Could not open file', 'Please try again.');
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  return (
+    <TouchableOpacity style={styles.fileRow} onPress={open} activeOpacity={0.7} disabled={!uri}>
+      {opening
+        ? <ActivityIndicator size="small" color={isSent ? '#fff' : Colors.primary} />
+        : <Feather name="file-text" size={18} color={isSent ? 'rgba(255,255,255,0.85)' : Colors.primary} />}
+      <Text style={[styles.fileText, isSent && styles.fileTextSent]} numberOfLines={2}>
+        {fileName ?? 'File'}
+      </Text>
+      <Feather name="download" size={15} color={isSent ? 'rgba(255,255,255,0.55)' : Colors.textTertiary} />
     </TouchableOpacity>
   );
 }
@@ -243,10 +273,15 @@ export function MessageBubble({
             ) : message.fileMimeType?.startsWith('audio/') ? (
               <VoiceMessageBubble fileUrl={message.fileUrl!} isSent={isSent} />
             ) : (
-              <View style={styles.fileRow}>
-                <Text style={styles.fileIcon}>📎</Text>
-                <Text style={styles.fileText} numberOfLines={2}>{message.fileName ?? 'File'}</Text>
-              </View>
+              <DocumentRow
+                uri={message.fileUrl
+                  ? message.fileUrl.startsWith('http')
+                    ? message.fileUrl
+                    : `${BASE_URL}${message.fileUrl}`
+                  : null}
+                fileName={message.fileName ?? null}
+                isSent={isSent}
+              />
             )}
 
             {/* Meta: edited label + timestamp + read receipt */}
@@ -374,9 +409,9 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: FontSize.xs,
   },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  fileIcon: { fontSize: 16 },
+  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2, minWidth: 160 },
   fileText: { color: Colors.textPrimary, fontSize: FontSize.sm, flex: 1 },
+  fileTextSent: { color: '#fff' },
 
   meta: {
     flexDirection: 'row',
