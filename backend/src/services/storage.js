@@ -73,9 +73,15 @@ const localProvider = {
     });
   },
 
-  async uploadFile(file, folder = '') {
-    const filename = path.basename(file.path);
-    return folder ? `/uploads/${folder}/${filename}` : `/uploads/${filename}`;
+  async uploadFile(file) {
+    // Build the public path from where multer actually wrote the file —
+    // NOT from the `folder` argument, which is a Cloudinary-style folder
+    // name (e.g. "messcast/uploads") that doesn't match the disk layout
+    // multerStorage() created (e.g. "uploads/<file>"). Using the wrong
+    // string here produced URLs that 404 even on the same running instance.
+    const uploadsRoot = path.join(__dirname, '../../uploads');
+    const relative    = path.relative(uploadsRoot, file.path).split(path.sep).join('/');
+    return `/uploads/${relative}`;
   },
 
   async deleteFile(publicUrl) {

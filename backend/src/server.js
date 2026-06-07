@@ -57,7 +57,12 @@ app.use('/api/messages',      messageRoutes);
 app.use('/api/admin',         adminRoutes);
 
 // --- Health check ---
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+// Includes the active storage provider so production config can be verified
+// remotely (e.g. confirming Render didn't fall back to ephemeral local disk).
+app.get('/health', (req, res) => res.json({
+  status: 'ok',
+  storageProvider: (process.env.STORAGE_PROVIDER ?? 'local').toLowerCase(),
+}));
 
 // --- Global error handler ---
 app.use((err, req, res, next) => {
